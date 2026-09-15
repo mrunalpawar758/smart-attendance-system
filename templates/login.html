@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}Sign In - Smart Attendance Portal{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center align-items-center py-4" style="min-height: 75vh;">
+    <div class="col-12 col-sm-10 col-md-8 col-lg-5 col-xl-4">
+        
+        <!-- Login Card -->
+        <div class="card glass-card border-0 shadow-lg p-3 p-sm-4">
+            <div class="card-body">
+                
+                <!-- Logo & Heading -->
+                <div class="text-center mb-4">
+                    <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary rounded-circle mb-3" style="width: 64px; height: 64px;">
+                        <i class="bi bi-shield-lock-fill fs-2"></i>
+                    </div>
+                    <h3 class="fw-bold text-dark mb-1">Welcome Back</h3>
+                    <p class="text-muted small">Sign in to your Smart Attendance account</p>
+                </div>
+
+                <!-- Form -->
+                <form method="POST" action="{{ url_for('login', next=request.args.get('next')) }}" id="loginForm">
+                    
+                    <!-- Username Input -->
+                    <div class="mb-3">
+                        <label for="usernameInput" class="form-label fw-semibold small text-secondary">Username or Roll Number</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0 text-muted">
+                                <i class="bi bi-person"></i>
+                            </span>
+                            <input type="text" class="form-control border-start-0 ps-0 bg-light" id="usernameInput" name="username" placeholder="e.g. prof_gupta or aarav_sharma" required autofocus>
+                        </div>
+                    </div>
+
+                    <!-- Password Input -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label for="passwordInput" class="form-label fw-semibold small text-secondary mb-0">Password</label>
+                            <span class="text-muted small">Demo: password123</span>
+                        </div>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0 text-muted">
+                                <i class="bi bi-key"></i>
+                            </span>
+                            <input type="password" class="form-control border-start-0 ps-0 bg-light" id="passwordInput" name="password" placeholder="Enter your password" required>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary w-100 py-2 fw-bold rounded-pill shadow-sm" id="btnSubmitLogin">
+                        <i class="bi bi-box-arrow-in-right me-2"></i> Sign In to Dashboard
+                    </button>
+                </form>
+
+                <!-- Quick Test Credentials Box -->
+                <div class="mt-4 pt-3 border-top">
+                    <div class="text-center mb-2">
+                        <span class="text-muted small fw-semibold">Quick-fill Demo Credentials:</span>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill text-start px-3 py-2" onclick="fillCreds('prof_gupta', 'password123')" id="btnDemoTeacher">
+                            <i class="bi bi-person-workspace me-1"></i> <strong>Teacher:</strong> prof_gupta <span class="badge bg-primary-subtle text-primary float-end">Faculty</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill text-start px-3 py-2" onclick="fillCreds('aarav_sharma', 'password123')" id="btnDemoStudent">
+                            <i class="bi bi-mortarboard me-1"></i> <strong>Student:</strong> aarav_sharma <span class="badge bg-secondary-subtle text-secondary float-end">CS2026_01</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="text-center mt-3 text-muted small">
+            B.Tech Project Architecture &bull; Relational Schema &bull; SHA-256
+        </div>
+
+    </div>
+</div>
+
+<script>
+function fillCreds(u, p) {
+    document.getElementById('usernameInput').value = u;
+    document.getElementById('passwordInput').value = p;
+    document.getElementById('loginForm').classList.add('animate__animated', 'animate__pulse');
+}
+</script>
+{% endblock %}

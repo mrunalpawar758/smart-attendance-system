@@ -1,0 +1,327 @@
+{% extends 'base.html' %}
+
+{% block title %}Dynamic QR Attendance Projector - {{ course.course_code }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .qr-stage-card {
+        background: radial-gradient(circle at center, #FFFFFF 0%, #F1F5F9 100%);
+        border: 2px solid #E2E8F0;
+        border-radius: 24px;
+        box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.15);
+    }
+
+    .qr-frame {
+        background: #FFFFFF;
+        padding: 20px;
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        display: inline-block;
+        border: 4px solid #3B82F6;
+        transition: transform 0.3s ease;
+    }
+
+    /* Circular Countdown Timer */
+    .countdown-circle {
+        width: 60px;
+        height: 60px;
+        position: relative;
+    }
+
+    .countdown-circle svg {
+        transform: rotate(-90deg);
+    }
+
+    .countdown-circle circle {
+        fill: none;
+        stroke-width: 5;
+    }
+
+    .circle-bg {
+        stroke: #E2E8F0;
+    }
+
+    .circle-progress {
+        stroke: #3B82F6;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
+    }
+
+    .countdown-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-weight: 800;
+        font-size: 1.1rem;
+        color: #1E293B;
+    }
+
+    /* Live attendee card */
+    .attendee-item {
+        animation: fadeInSlide 0.5s ease-out forwards;
+        border-left: 4px solid #10B981;
+    }
+
+    @keyframes fadeInSlide {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-lg-4 py-2">
+
+    <!-- Header & Navigation -->
+    <div class="d-flex flex-wrap align-items-center justify-content-between mb-4 gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ url_for('teacher_dashboard', course_id=course.id) }}" class="btn btn-outline-secondary btn-sm rounded-circle shadow-sm" title="Back to Dashboard">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+                <h3 class="fw-bold text-dark mb-0">Dynamic QR Attendance Projector</h3>
+                <span class="badge bg-danger rounded-pill px-3 py-1 text-uppercase fw-bold" style="font-size: 0.75rem;">
+                    <i class="bi bi-broadcast me-1"></i> Anti-Proxy Live
+                </span>
+            </div>
+            <p class="text-muted small mb-0 ms-4 ps-2">
+                Course: <strong>{{ course.course_code }} &bull; {{ course.course_name }}</strong> | Session ID: #<span id="displaySessionId">{{ session_id }}</span>
+            </p>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="toggleFullScreen()" id="btnFullscreen">
+                <i class="bi bi-arrows-fullscreen me-1"></i> Fullscreen
+            </button>
+            <a href="{{ url_for('teacher_dashboard', course_id=course.id) }}" class="btn btn-dark btn-sm rounded-pill px-3">
+                <i class="bi bi-check2-circle me-1"></i> Finish Session
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Projector Stage -->
+    <div class="row g-4">
+        
+        <!-- Left: Dynamic QR Projection Area (8 cols) -->
+        <div class="col-12 col-xl-8 text-center">
+            <div class="qr-stage-card p-4 p-md-5">
+                
+                <!-- Countdown Header -->
+                <div class="d-flex align-items-center justify-content-center gap-3 mb-4">
+                    <div class="countdown-circle">
+                        <svg width="60" height="60">
+                            <circle class="circle-bg" cx="30" cy="30" r="25"></circle>
+                            <circle class="circle-progress" id="countdownProgress" cx="30" cy="30" r="25"
+                                    stroke-dasharray="157" stroke-dashoffset="0"></circle>
+                        </svg>
+                        <div class="countdown-text" id="countdownNumber">15</div>
+                    </div>
+                    <div class="text-start">
+                        <div class="fw-bold text-dark fs-5">Rotating Dynamic Token</div>
+                        <div class="text-muted small">Refreshes every <strong>15 seconds</strong> to prevent proxy screenshots</div>
+                    </div>
+                </div>
+
+                <!-- QR Code Display Box -->
+                <div class="my-3">
+                    <div class="qr-frame" id="qrContainer">
+                        <img id="qrImage" src="" alt="Dynamic Attendance QR Code" class="img-fluid" style="width: 280px; height: 280px;">
+                    </div>
+                </div>
+
+                <!-- Live Direct Link (For testing on same machine without camera) -->
+                <div class="mt-4 p-3 bg-white rounded-4 border shadow-sm mx-auto" style="max-width: 620px;">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="small fw-bold text-secondary">
+                            <i class="bi bi-link-45deg me-1"></i> Direct Student Verification URL:
+                        </span>
+                        <span class="badge bg-primary-subtle text-primary font-monospace small" id="tokenBadge">
+                            Token: <span id="tokenString">Loading...</span>
+                        </span>
+                    </div>
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control font-monospace bg-light" id="directVerifyUrl" readonly>
+                        <button class="btn btn-outline-primary" type="button" onclick="copyVerifyUrl()" id="btnCopyUrl" title="Copy verification URL">
+                            <i class="bi bi-clipboard me-1"></i> Copy Link
+                        </button>
+                        <a href="#" target="_blank" class="btn btn-primary" id="btnTestVerify" title="Test verification in new tab">
+                            <i class="bi bi-box-arrow-up-right me-1"></i> Test Scan
+                        </a>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        <i class="bi bi-shield-check text-success me-1"></i> Students must be logged into their account on their device to be marked Present.
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Right: Live Attendees Feed (4 cols) -->
+        <div class="col-12 col-xl-4">
+            <div class="card glass-card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="fw-bold mb-0 text-dark">
+                            <i class="bi bi-people-fill text-success me-2"></i>Live Attendees
+                        </h5>
+                        <span class="text-muted small">Scanned in this session</span>
+                    </div>
+                    <span class="badge bg-success fs-6 rounded-pill px-3" id="liveAttendeeCount">0</span>
+                </div>
+
+                <div class="card-body p-3 overflow-auto" style="max-height: 520px;" id="attendeesList">
+                    <div class="text-center py-5 text-muted" id="noAttendeesMsg">
+                        <i class="bi bi-qr-code fs-1 text-secondary mb-2 d-block"></i>
+                        <span class="fw-semibold">Waiting for student scans...</span>
+                        <p class="small text-muted mb-0 mt-1">Students will appear here immediately as they scan.</p>
+                    </div>
+                </div>
+
+                <div class="card-footer bg-light py-2 text-center text-muted small">
+                    <i class="bi bi-arrow-repeat spin-icon me-1"></i> Live polling active
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- JavaScript for Dynamic 15-Second Refresh & Live Feed -->
+<script>
+    const sessionId = {{ session_id }};
+    const CIRCUMFERENCE = 157; // 2 * pi * 25
+    let secondsLeft = 15;
+    let timerInterval = null;
+
+    async function fetchDynamicToken() {
+        try {
+            const response = await fetch(`/api/qr/token/${sessionId}`);
+            if (!response.ok) throw new Error("Failed to fetch token");
+            const data = await response.json();
+
+            // Update QR image
+            document.getElementById('qrImage').src = data.qr_base64;
+            document.getElementById('directVerifyUrl').value = data.verify_url;
+            document.getElementById('btnTestVerify').href = data.verify_url;
+            document.getElementById('tokenString').textContent = data.token;
+
+            // Reset timer
+            secondsLeft = data.seconds_remaining || 15;
+            updateTimerDisplay();
+        } catch (err) {
+            console.error("Error refreshing QR token:", err);
+        }
+    }
+
+    function updateTimerDisplay() {
+        const numberEl = document.getElementById('countdownNumber');
+        const progressEl = document.getElementById('countdownProgress');
+
+        numberEl.textContent = secondsLeft;
+
+        // Calculate stroke offset
+        const offset = CIRCUMFERENCE - (secondsLeft / 15) * CIRCUMFERENCE;
+        progressEl.style.strokeDashoffset = offset;
+
+        // Change color when time is running out (< 5 seconds)
+        if (secondsLeft <= 4) {
+            progressEl.style.stroke = '#EF4444'; // Red
+            numberEl.style.color = '#EF4444';
+        } else {
+            progressEl.style.stroke = '#3B82F6'; // Blue
+            numberEl.style.color = '#1E293B';
+        }
+    }
+
+    function startTimer() {
+        if (timerInterval) clearInterval(timerInterval);
+
+        timerInterval = setInterval(() => {
+            secondsLeft--;
+            if (secondsLeft <= 0) {
+                // Time window expired - fetch the new rotated token
+                fetchDynamicToken();
+            } else {
+                updateTimerDisplay();
+            }
+        }, 1000);
+    }
+
+    // Poll live attendees every 3 seconds
+    async function fetchAttendees() {
+        try {
+            const res = await fetch(`/api/qr/attendees/${sessionId}`);
+            if (!res.ok) return;
+            const data = await res.json();
+
+            document.getElementById('liveAttendeeCount').textContent = data.count;
+            const listEl = document.getElementById('attendeesList');
+
+            if (data.count === 0) {
+                listEl.innerHTML = `
+                    <div class="text-center py-5 text-muted" id="noAttendeesMsg">
+                        <i class="bi bi-qr-code fs-1 text-secondary mb-2 d-block"></i>
+                        <span class="fw-semibold">Waiting for student scans...</span>
+                        <p class="small text-muted mb-0 mt-1">Students will appear here immediately as they scan.</p>
+                    </div>`;
+            } else {
+                let html = '<div class="d-flex flex-column gap-2">';
+                data.attendees.forEach(a => {
+                    html += `
+                        <div class="p-3 bg-white rounded-3 shadow-sm attendee-item border">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-bold text-dark">${a.full_name}</div>
+                                    <span class="badge bg-secondary font-monospace">${a.roll_number || 'N/A'}</span>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle small">
+                                        <i class="bi bi-check2"></i> Verified
+                                    </span>
+                                    <div class="text-muted font-monospace small" style="font-size: 0.7rem;">${a.marked_at.split(' ')[1] || a.marked_at}</div>
+                                </div>
+                            </div>
+                        </div>`;
+                });
+                html += '</div>';
+                listEl.innerHTML = html;
+            }
+        } catch (err) {
+            console.error("Error fetching attendees:", err);
+        }
+    }
+
+    function copyVerifyUrl() {
+        const input = document.getElementById('directVerifyUrl');
+        input.select();
+        navigator.clipboard.writeText(input.value);
+        const btn = document.getElementById('btnCopyUrl');
+        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Copied!';
+        btn.classList.replace('btn-outline-primary', 'btn-success');
+        setTimeout(() => {
+            btn.innerHTML = '<i class="bi bi-clipboard me-1"></i> Copy Link';
+            btn.classList.replace('btn-success', 'btn-outline-primary');
+        }, 2000);
+    }
+
+    function toggleFullScreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                alert(`Error attempting to enable full-screen: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchDynamicToken();
+        startTimer();
+        fetchAttendees();
+        setInterval(fetchAttendees, 3000); // Check for new scans every 3 seconds
+    });
+</script>
+{% endblock %}

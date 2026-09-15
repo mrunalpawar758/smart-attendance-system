@@ -1,0 +1,288 @@
+{% extends 'base.html' %}
+
+{% block title %}Teacher Dashboard - Smart Attendance System{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 px-lg-2">
+
+    <!-- Top Header & Subject Switcher -->
+    <div class="row align-items-center mb-4">
+        <div class="col-md-7">
+            <h2 class="fw-bold text-dark mb-1">
+                <i class="bi bi-person-workspace text-primary me-2"></i>Faculty Attendance Dashboard
+            </h2>
+            <p class="text-muted mb-0">
+                Welcome, <strong>{{ session.get('full_name') }}</strong> | Department of Computer Science & Engineering
+            </p>
+        </div>
+        <div class="col-md-5 text-md-end mt-3 mt-md-0">
+            <!-- Course Selector -->
+            <form method="GET" action="{{ url_for('teacher_dashboard') }}" class="d-inline-flex align-items-center gap-2" id="courseSelectForm">
+                <label for="courseSelect" class="small fw-bold text-secondary text-nowrap">Course:</label>
+                <select name="course_id" id="courseSelect" class="form-select form-select-sm shadow-sm" onchange="this.form.submit()">
+                    {% for c in courses %}
+                        <option value="{{ c['id'] }}" {% if selected_course and selected_course['id'] == c['id'] %}selected{% endif %}>
+                            {{ c['course_code'] }} - {{ c['course_name'] }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+    </div>
+
+    {% if selected_course %}
+    <!-- Metric Cards Row -->
+    <div class="row g-3 mb-4">
+        <!-- Metric 1: Total Enrolled -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="metric-card shadow-sm d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="text-muted small fw-semibold text-uppercase">Enrolled Students</div>
+                    <div class="fs-2 fw-bold text-dark">{{ students|length }}</div>
+                    <div class="small text-muted"><i class="bi bi-people me-1"></i>Active Roster</div>
+                </div>
+                <div class="metric-icon-bg bg-primary-subtle text-primary">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metric 2: Classes Held -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="metric-card shadow-sm d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="text-muted small fw-semibold text-uppercase">Total Classes Held</div>
+                    <div class="fs-2 fw-bold text-dark">{{ total_sessions }}</div>
+                    <div class="small text-muted"><i class="bi bi-calendar3 me-1"></i>Curriculum Sessions</div>
+                </div>
+                <div class="metric-icon-bg bg-info-subtle text-info">
+                    <i class="bi bi-journal-bookmark-fill"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metric 3: Class Average -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="metric-card shadow-sm d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="text-muted small fw-semibold text-uppercase">Class Average %</div>
+                    <div class="fs-2 fw-bold text-dark">{{ avg_attendance }}%</div>
+                    <div class="small text-muted"><i class="bi bi-graph-up-arrow me-1"></i>Overall Engagement</div>
+                </div>
+                <div class="metric-icon-bg bg-success-subtle text-success">
+                    <i class="bi bi-award-fill"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metric 4: Low Attendance Defaulters -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="metric-card shadow-sm d-flex align-items-center justify-content-between {% if defaulters_count > 0 %}border-danger-subtle bg-danger bg-opacity-10{% endif %}">
+                <div>
+                    <div class="text-danger small fw-bold text-uppercase">Defaulters (< 75%)</div>
+                    <div class="fs-2 fw-bold text-danger">{{ defaulters_count }}</div>
+                    <div class="small text-danger fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i>Action Required</div>
+                </div>
+                <div class="metric-icon-bg bg-danger-subtle text-danger">
+                    <i class="bi bi-shield-exclamation"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Action Banner -->
+    <div class="card glass-card border-0 mb-4 p-3 shadow-sm">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div>
+                <h5 class="fw-bold mb-1 text-dark">
+                    <i class="bi bi-stars text-warning me-2"></i>Attendance Verification Modes
+                </h5>
+                <p class="text-muted small mb-0">Use anti-proxy dynamic QR projector or review automated analytics reports</p>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <!-- Launch Dynamic QR Button (Module 3) -->
+                <a href="{{ url_for('qr_display', course_id=selected_course['id']) }}" class="btn btn-primary rounded-pill px-3 shadow-sm fw-semibold" id="btnLaunchQR">
+                    <i class="bi bi-qr-code-scan me-1"></i> Launch Dynamic QR (15s)
+                </a>
+                <!-- Reports & Analytics Button (Module 5) -->
+                <a href="{{ url_for('reports_view', course_id=selected_course['id']) }}" class="btn btn-outline-dark rounded-pill px-3 fw-semibold" id="btnViewReports">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i> Analytics & Excel Export
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Attendance Entry & Student Roster -->
+    <div class="card glass-card border-0 shadow-sm mb-4">
+        
+        <!-- Card Header -->
+        <div class="card-header bg-white border-bottom py-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <h5 class="fw-bold mb-0 text-dark">
+                    <i class="bi bi-ui-checks me-2 text-primary"></i>Daily Attendance Entry & Student Roster
+                </h5>
+                <span class="text-muted small">Course: <strong>{{ selected_course['course_code'] }} - {{ selected_course['course_name'] }}</strong></span>
+            </div>
+
+            <!-- Bulk Toggle Helpers -->
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-success btn-sm rounded-pill px-3" onclick="setAllAttendance(true)" id="btnMarkAllPresent">
+                    <i class="bi bi-check-all me-1"></i> Mark All Present
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" onclick="setAllAttendance(false)" id="btnMarkAllAbsent">
+                    <i class="bi bi-x me-1"></i> Mark All Absent
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body p-0">
+            <!-- Form to Submit Daily Attendance -->
+            <form method="POST" action="{{ url_for('submit_attendance') }}" id="attendanceEntryForm">
+                <input type="hidden" name="course_id" value="{{ selected_course['id'] }}">
+
+                <!-- Date Selector Bar -->
+                <div class="p-3 bg-light border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="sessionDate" class="small fw-bold text-secondary mb-0">Session Date:</label>
+                        <input type="date" class="form-control form-control-sm shadow-sm" id="sessionDate" name="session_date" value="{{ today_date }}" required style="max-width: 170px;">
+                        {% if today_session %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                <i class="bi bi-check2-circle me-1"></i> Session recorded for today
+                            </span>
+                        {% endif %}
+                    </div>
+                    <div class="text-muted small">
+                        <i class="bi bi-info-circle me-1"></i> Defaulters below <strong>75%</strong> are highlighted in red.
+                    </div>
+                </div>
+
+                <!-- Table Roster -->
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="rosterTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4" style="width: 12%;">Roll Number</th>
+                                <th style="width: 25%;">Student Name</th>
+                                <th class="text-center" style="width: 15%;">Classes Attended</th>
+                                <th class="text-center" style="width: 15%;">Cumulative %</th>
+                                <th class="text-center" style="width: 18%;">Status Alert</th>
+                                <th class="text-center pe-4" style="width: 15%;">Today's Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in students %}
+                            <tr class="{% if s.is_defaulter %}defaulter-row{% endif %}" id="row_student_{{ s.id }}">
+                                <input type="hidden" name="student_ids" value="{{ s.id }}">
+                                
+                                <!-- Roll Number -->
+                                <td class="ps-4 fw-bold font-monospace text-dark">
+                                    {{ s.roll_number }}
+                                </td>
+
+                                <!-- Student Name & Email -->
+                                <td>
+                                    <div class="fw-bold text-dark">{{ s.full_name }}</div>
+                                    <div class="text-muted small">{{ s.email }}</div>
+                                </td>
+
+                                <!-- Classes Attended -->
+                                <td class="text-center font-monospace">
+                                    <span class="fw-semibold text-dark">{{ s.attended }}</span> / {{ s.total_sessions }}
+                                </td>
+
+                                <!-- Monthly Percentage -->
+                                <td class="text-center">
+                                    <span class="fw-bold fs-6 {% if s.is_defaulter %}text-danger{% else %}text-success{% endif %}">
+                                        {{ s.percentage }}%
+                                    </span>
+                                    <div class="progress mt-1" style="height: 5px;">
+                                        <div class="progress-bar {% if s.is_defaulter %}bg-danger{% else %}bg-success{% endif %}" 
+                                             role="progressbar" 
+                                             style="width: {{ s.percentage }}%;" 
+                                             aria-valuenow="{{ s.percentage }}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <!-- Visual Alert Highlight (Defaulter < 75%) -->
+                                <td class="text-center">
+                                    {% if s.is_defaulter %}
+                                        <span class="badge-defaulter" title="Attendance below university mandate 75%">
+                                            <i class="bi bi-exclamation-triangle-fill"></i> Defaulter (< 75%)
+                                        </span>
+                                    {% else %}
+                                        <span class="badge-satisfactory">
+                                            <i class="bi bi-check-circle-fill"></i> Satisfactory
+                                        </span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- Daily Attendance Toggle Switch -->
+                                <td class="text-center pe-4">
+                                    <div class="form-check form-switch d-inline-block">
+                                        <!-- Checked if previously marked PRESENT today, or default checked if no record yet -->
+                                        {% set is_marked_present = (today_status_map.get(s.id) == 'PRESENT') or (s.id not in today_status_map) %}
+                                        <input class="form-check-input attendance-toggle" 
+                                               type="checkbox" 
+                                               role="switch" 
+                                               id="toggle_{{ s.id }}" 
+                                               name="status_{{ s.id }}" 
+                                               value="PRESENT"
+                                               {% if is_marked_present %}checked{% endif %}
+                                               onchange="updateToggleLabel('{{ s.id }}')">
+                                        <label class="form-check-label small fw-bold ms-1" id="label_{{ s.id }}" for="toggle_{{ s.id }}">
+                                            {% if is_marked_present %}
+                                                <span class="text-success">Present</span>
+                                            {% else %}
+                                                <span class="text-danger">Absent</span>
+                                            {% endif %}
+                                        </label>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Footer Submit Action -->
+                <div class="card-footer bg-white py-3 px-4 d-flex justify-content-between align-items-center">
+                    <span class="text-muted small">
+                        Review toggles before saving. You can re-submit for the same date anytime.
+                    </span>
+                    <button type="submit" class="btn btn-success px-4 py-2 rounded-pill fw-bold shadow-sm" id="btnSubmitAttendance">
+                        <i class="bi bi-cloud-check-fill me-1"></i> Save Daily Attendance
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">No courses assigned to your account.</div>
+    {% endif %}
+
+</div>
+
+<script>
+function updateToggleLabel(studentId) {
+    const toggle = document.getElementById('toggle_' + studentId);
+    const label = document.getElementById('label_' + studentId);
+    if (toggle.checked) {
+        label.innerHTML = '<span class="text-success">Present</span>';
+    } else {
+        label.innerHTML = '<span class="text-danger">Absent</span>';
+    }
+}
+
+function setAllAttendance(status) {
+    const toggles = document.querySelectorAll('.attendance-toggle');
+    toggles.forEach(t => {
+        t.checked = status;
+        const studentId = t.id.replace('toggle_', '');
+        updateToggleLabel(studentId);
+    });
+}
+</script>
+{% endblock %}

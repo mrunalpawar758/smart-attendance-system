@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+
+{% block title %}Attendance Analytics & Reports - {{ course.course_code }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 px-lg-2">
+
+    <!-- Header -->
+    <div class="d-flex flex-wrap align-items-center justify-content-between mb-4 gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ url_for('teacher_dashboard', course_id=course.id) }}" class="btn btn-outline-secondary btn-sm rounded-circle shadow-sm" title="Back to Dashboard">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+                <h2 class="fw-bold text-dark mb-0">Attendance Analytics & Reports</h2>
+            </div>
+            <p class="text-muted small mb-0 ms-4 ps-2">
+                Course: <strong>{{ course.course_code }} - {{ course.course_name }}</strong> | Instructor: <strong>{{ course.teacher_name }}</strong>
+            </p>
+        </div>
+
+        <!-- Export Buttons (Excel & CSV) -->
+        <div class="d-flex flex-wrap gap-2">
+            <!-- Excel Export Button -->
+            <a href="{{ url_for('export_report', format_type='excel', course_id=course.id, start_date=start_date, end_date=end_date) }}" 
+               class="btn btn-success rounded-pill px-3 shadow-sm fw-semibold" id="btnExportExcel">
+                <i class="bi bi-file-earmark-excel-fill me-1"></i> Download Excel (.xlsx)
+            </a>
+            <!-- CSV Export Button -->
+            <a href="{{ url_for('export_report', format_type='csv', course_id=course.id, start_date=start_date, end_date=end_date) }}" 
+               class="btn btn-outline-secondary rounded-pill px-3 fw-semibold" id="btnExportCSV">
+                <i class="bi bi-file-earmark-text-fill me-1"></i> Download CSV (.csv)
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Bar Card -->
+    <div class="card glass-card border-0 shadow-sm p-3 mb-4">
+        <form method="GET" action="{{ url_for('reports_view', course_id=course.id) }}" class="row g-3 align-items-end" id="filterForm">
+            <div class="col-12 col-sm-4 col-md-3">
+                <label for="startDateInput" class="form-label small fw-bold text-secondary mb-1">
+                    <i class="bi bi-calendar-event me-1"></i> From Date:
+                </label>
+                <input type="date" class="form-control form-control-sm" id="startDateInput" name="start_date" value="{{ start_date }}">
+            </div>
+            <div class="col-12 col-sm-4 col-md-3">
+                <label for="endDateInput" class="form-label small fw-bold text-secondary mb-1">
+                    <i class="bi bi-calendar-event me-1"></i> To Date:
+                </label>
+                <input type="date" class="form-control form-control-sm" id="endDateInput" name="end_date" value="{{ end_date }}">
+            </div>
+            <div class="col-12 col-sm-4 col-md-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4 fw-semibold shadow-sm" id="btnApplyFilter">
+                    <i class="bi bi-funnel-fill me-1"></i> Filter Records
+                </button>
+                {% if start_date or end_date %}
+                <a href="{{ url_for('reports_view', course_id=course.id) }}" class="btn btn-light btn-sm rounded-pill px-3">
+                    <i class="bi bi-x-circle me-1"></i> Reset
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Summary Metrics -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="metric-card shadow-sm">
+                <div class="text-muted small fw-semibold text-uppercase">Total Enrolled</div>
+                <div class="fs-3 fw-bold text-dark">{{ total_students }}</div>
+                <div class="small text-muted">Students</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="metric-card shadow-sm">
+                <div class="text-muted small fw-semibold text-uppercase">Classes Evaluated</div>
+                <div class="fs-3 fw-bold text-dark">{{ total_classes }}</div>
+                <div class="small text-muted">Sessions in range</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="metric-card shadow-sm">
+                <div class="text-muted small fw-semibold text-uppercase">Class Average</div>
+                <div class="fs-3 fw-bold text-primary">{{ avg_percentage }}%</div>
+                <div class="small text-muted">Overall aggregate</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="metric-card shadow-sm {% if defaulters_count > 0 %}border-danger-subtle bg-danger bg-opacity-10{% endif %}">
+                <div class="text-danger small fw-bold text-uppercase">Defaulters Count</div>
+                <div class="fs-3 fw-bold text-danger">{{ defaulters_count }}</div>
+                <div class="small text-danger fw-semibold">< 75% Threshold</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Table -->
+    <div class="card glass-card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0 text-dark">
+                <i class="bi bi-table me-2 text-primary"></i>Report Preview & Defaulters Roster
+            </h5>
+            <span class="badge bg-light text-secondary border">
+                {{ records|length }} Records Calculated
+            </span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="reportPreviewTable">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Roll Number</th>
+                        <th>Student Name</th>
+                        <th>Email</th>
+                        <th class="text-center">Total Classes</th>
+                        <th class="text-center">Attended</th>
+                        <th class="text-center">Absent</th>
+                        <th class="text-center">Attendance %</th>
+                        <th class="text-center pe-4">Defaulter Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in records %}
+                    <tr class="{% if r['Is Defaulter'] %}defaulter-row{% endif %}">
+                        <td class="ps-4 fw-bold font-monospace text-dark">{{ r['Roll Number'] }}</td>
+                        <td class="fw-bold text-dark">{{ r['Student Name'] }}</td>
+                        <td class="text-muted small">{{ r['Email'] }}</td>
+                        <td class="text-center font-monospace">{{ r['Total Classes'] }}</td>
+                        <td class="text-center font-monospace text-success fw-bold">{{ r['Attended'] }}</td>
+                        <td class="text-center font-monospace text-danger">{{ r['Absent'] }}</td>
+                        <td class="text-center">
+                            <span class="fw-bold {% if r['Is Defaulter'] %}text-danger{% else %}text-success{% endif %}">
+                                {{ r['Attendance %'] }}%
+                            </span>
+                        </td>
+                        <td class="text-center pe-4">
+                            {% if r['Is Defaulter'] %}
+                                <span class="badge-defaulter">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> Defaulter (< 75%)
+                                </span>
+                            {% else %}
+                                <span class="badge-satisfactory">
+                                    <i class="bi bi-check-circle-fill"></i> Satisfactory (>= 75%)
+                                </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-footer bg-light py-3 px-4 d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+                <i class="bi bi-info-circle me-1"></i> Downloaded Excel files contain formatted headers and automated soft-red highlighting for all defaulter rows.
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
